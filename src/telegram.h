@@ -1,0 +1,1 @@
+void send_file_to_telegram(char *file_path);

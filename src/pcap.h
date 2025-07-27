@@ -10,3 +10,7 @@ void close_pcap_writer(void);
 bool  is_writer_enabled(void);
 
 FILE *get_pcap_file(void);
+
+void close_task(void *arg);
+
+TaskHandle_t close_task_handle = NULL;

