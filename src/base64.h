@@ -1,0 +1,1 @@
+void dump_file_one_shot();

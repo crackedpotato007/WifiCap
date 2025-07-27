@@ -1,1 +1,4 @@
 .pio
+output_dir
+spiffs_dump.bin
+
