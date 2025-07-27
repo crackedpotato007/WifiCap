@@ -23,10 +23,17 @@ static int ap_count = 0;
 static uint8_t selected_ap_bssid[6];
 
 bool is_bssid_seen(const uint8_t *bssid) {
+  ESP_LOGD(TAG, "Checking if BSSID is seen: %02X:%02X:%02X:%02X:%02X:%02X",
+           bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
     for (int i = 0; i < ap_count; i++) {
-        if (memcmp(ap_list[i].bssid, bssid, 6) == 0)
+        if (memcmp(ap_list[i].bssid, bssid, 6) == 0){
+        ESP_LOGD(TAG, "BSSID already seen: %02X:%02X:%02X:%02X:%02X:%02X",
+                 bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
             return true;
+        }
     }
+    ESP_LOGD(TAG, "BSSID not seen: %02X:%02X:%02X:%02X:%02X:%02X",
+             bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
     return false;
 }
 
@@ -64,44 +71,46 @@ void add_station(const uint8_t *mac) {
 static void wifi_sniffer_packet_handler(void *buff, wifi_promiscuous_pkt_type_t type) {
     const wifi_promiscuous_pkt_t *pkt = (wifi_promiscuous_pkt_t *)buff;
     const uint8_t *data = pkt->payload;
+if (type == WIFI_PKT_MGMT) {
+    const uint8_t *bssid = &data[10];
+    int offset = 36; // Start after 802.11 management header
+    char ssid[33] = {0};
+    int channel = -1;
 
-    if (type == WIFI_PKT_MGMT) {
-        const uint8_t *bssid = &data[10];
-        if (is_bssid_seen(bssid)) return; // Avoid duplicates early
+    while (offset + 2 <= pkt->rx_ctrl.sig_len) {
+        uint8_t tag_number = data[offset];
+        uint8_t tag_length = data[offset + 1];
 
-        int offset = 24; // Start after 802.11 management header
-        char ssid[33] = {0};
-        int channel = -1;
+        if (offset + 2 + tag_length > pkt->rx_ctrl.sig_len)
+            break; // Prevent buffer overrun
 
-        while (offset + 2 <= pkt->rx_ctrl.sig_len) {
-            uint8_t tag_number = data[offset];
-            uint8_t tag_length = data[offset + 1];
-
-            if (offset + 2 + tag_length > pkt->rx_ctrl.sig_len)
-                break; // Prevent buffer overrun
-
-            if (tag_number == 0) { // SSID parameter set
-                if (tag_length > 0 && tag_length <= 32) {
-                    memcpy(ssid, &data[offset + 2], tag_length);
-                    ssid[tag_length] = '\0';
-                }
-            } else if (tag_number == 3 && tag_length == 1) { // DS Parameter Set
-                channel = data[offset + 2];
+        if (tag_number == 0) { // SSID parameter set
+            if (tag_length > 0 && tag_length <= 32) {
+                memcpy(ssid, &data[offset + 2], tag_length);
+                ssid[tag_length] = '\0';
             }
-
-            offset += 2 + tag_length;
-
-            if (ssid[0] != '\0' && channel > 0)
-                break; // Found both SSID and channel
+        } else if (tag_number == 3 && tag_length == 1) { // DS Parameter Set (channel)
+            channel = data[offset + 2];
         }
 
-        if (ssid[0] != '\0' && channel > 0) {
+        offset += 2 + tag_length;
+
+        if (ssid[0] != '\0' && channel > 0)
+            break; // Found both SSID and channel
+    }
+    ESP_LOGD(TAG, "SSID: %s, BSSID: %02X:%02X:%02X:%02X:%02X:%02X, Channel: %d",
+             ssid, bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], channel);
+    // Only log and add if both SSID and channel are valid
+    if (ssid[0] != '\0' && channel > 0) {
+        if (!is_bssid_seen(bssid)) {
             add_ap(ssid, bssid, channel);
             ESP_LOGI("BEACON",
                      "[%d] SSID: %s | BSSID: %02X:%02X:%02X:%02X:%02X:%02X | CH: %d",
                      ap_count, ssid, bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], channel);
         }
-    } else if (type == WIFI_PKT_DATA) {
+    }
+}
+ else if (type == WIFI_PKT_DATA) {
         const uint8_t *addr2 = &data[10]; // Source
         const uint8_t *addr3 = &data[16]; // BSSID
         if (memcmp(addr3, selected_ap_bssid, 6) == 0) {
@@ -150,7 +159,9 @@ void selectAP(void) {
     ESP_LOGI(TAG, "Selected BSSID: %02X:%02X:%02X:%02X:%02X:%02X",
              selected_ap_bssid[0], selected_ap_bssid[1], selected_ap_bssid[2],
              selected_ap_bssid[3], selected_ap_bssid[4], selected_ap_bssid[5]);
+    ESP_LOGI(TAG, "Selected SSID: %s", ap_list[random_index].ssid);
     ESP_LOGI(TAG, "Selected channel: %d", ap_list[random_index].channel);
+
 
     esp_wifi_set_channel(ap_list[random_index].channel, WIFI_SECOND_CHAN_NONE);
     ESP_LOGI(TAG, "Sniffing for clients for 10 seconds...");
@@ -167,7 +178,7 @@ void selectAP(void) {
 
 void channel_hopper_task(void *pvParameters) {
     int ch = 1;
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 50; i++) {
         esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
         ESP_LOGI("HOPPER", "Switched to channel %d", ch);
         ch = (ch % 13) + 1;
