@@ -10,7 +10,6 @@
 #include <string.h>
 #include <sys/time.h>
 
-
 struct pcap_hdr_s {
   uint32_t magic_number;  // 0xa1b2c3d4
   uint16_t version_major; // 2
@@ -69,12 +68,12 @@ void sanitize_ssid(const char *input, char *output, size_t max_len) {
 }
 #define MAX_SSID_LEN 12
 #define MAX_FILENAME_LEN 32
+char file_path[MAX_FILENAME_LEN];
 void start_pcap_writer(char *ssid) {
   // file format: /spiffs/capture-ssid.pcap
   char clean_ssid[MAX_SSID_LEN];
   sanitize_ssid(ssid, clean_ssid, sizeof(clean_ssid));
 
-  char file_path[MAX_FILENAME_LEN];
   int written =
       snprintf(file_path, sizeof(file_path), "/spiffs/cap_%s.pcap", clean_ssid);
 
@@ -127,7 +126,7 @@ void close_pcap_writer(void) {
     ESP_LOGI("PCAP", "PCAP file closed");
   }
 
-  // send_file_to_telegram("/spiffs/capture.pcap");
+  send_file_to_telegram(file_path);
 }
 bool is_writer_enabled() { return writer_enabled; }
 

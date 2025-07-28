@@ -182,20 +182,23 @@ void selectAP(void) {
              selected_ap_bssid[3], selected_ap_bssid[4], selected_ap_bssid[5]);
     ESP_LOGI(TAG, "Selected SSID: %s", ap_list[i].ssid);
     ESP_LOGI(TAG, "Selected channel: %d", ap_list[i].channel);
-    esp_wifi_set_channel(ap_list[i].channel, WIFI_SECOND_CHAN_NONE);
     ESP_LOGI(TAG, "Sniffing for clients for 10 seconds...");
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    vTaskDelay(pdMS_TO_TICKS(5000)); // Wait for Wi-Fi to start
+    ESP_ERROR_CHECK(
+        esp_wifi_set_channel(ap_list[i].channel, WIFI_SECOND_CHAN_NONE));
+    ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
     vTaskDelay(pdMS_TO_TICKS(10000)); // Capture stations for 10s
-    esp_wifi_set_mode(WIFI_MODE_STA);
-    esp_wifi_start();
-    esp_wifi_set_channel(ap_list[i].channel, WIFI_SECOND_CHAN_NONE);
+
     start_pcap_writer(ap_list[i].ssid); // Start PCAP writer
     deauth_clients();
     ESP_LOGI(TAG, "Deauth sent to selected AP: %02X:%02X:%02X:%02X:%02X:%02X",
              selected_ap_bssid[0], selected_ap_bssid[1], selected_ap_bssid[2],
              selected_ap_bssid[3], selected_ap_bssid[4], selected_ap_bssid[5]);
   }
-  start_file_server_ap();
-  // xTaskCreate(close_task, "close_task", 8092, NULL, 5, &close_task_handle);
+  // start_file_server_ap();
+  //  xTaskCreate(close_task, "close_task", 8092, NULL, 5, &close_task_handle);
 }
 
 void channel_hopper_task(void *pvParameters) {
@@ -227,9 +230,10 @@ void app_main(void) {
   ESP_ERROR_CHECK(esp_event_loop_create_default());
   init_spiffs();
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
+  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+  esp_netif_create_default_wifi_sta();
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_NULL));
   ESP_ERROR_CHECK(esp_wifi_start());
 
