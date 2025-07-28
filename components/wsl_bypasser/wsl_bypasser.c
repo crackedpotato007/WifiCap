@@ -50,7 +50,19 @@ void wsl_bypasser_send_raw_frame(const uint8_t *frame_buffer, int size) {
     ESP_LOGE(TAG, "Wi-Fi mode is not STA, cannot send raw frame");
     return;
   }
-  ESP_ERROR_CHECK(esp_wifi_80211_tx(WIFI_IF_STA, frame_buffer, size, false));
+  esp_err_t err;
+  int retries = 0;
+  do {
+    err = esp_wifi_80211_tx(WIFI_IF_STA, frame_buffer, size, false);
+    if (err == ESP_ERR_NO_MEM) {
+      ESP_LOGW(TAG, "TX buffer full, retrying...");
+      vTaskDelay(pdMS_TO_TICKS(50));
+    }
+  } while (err == ESP_ERR_NO_MEM && retries++ < 10);
+
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to send frame: %s", esp_err_to_name(err));
+  }
 }
 
 void wsl_bypasser_send_deauth_frame(const uint8_t *ap_record,
@@ -69,8 +81,6 @@ void wsl_bypasser_send_deauth_frame(const uint8_t *ap_record,
 
   memcpy(&deauth_frame[10], ap_record, 6);
   memcpy(&deauth_frame[16], ap_record, 6);
-
-  
 
   wsl_bypasser_send_raw_frame(deauth_frame, sizeof(deauth_frame_default));
 }

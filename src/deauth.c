@@ -33,8 +33,6 @@ void send_deauth_packet(const uint8_t *ap_bssid, const uint8_t *client_mac) {
     // esp_wifi_80211_tx(WIFI_IF_STA, deauth_frame, sizeof(deauth_frame),
     // false);
     wsl_bypasser_send_deauth_frame(ap_bssid, client_mac);
-
-
-    vTaskDelay(pdMS_TO_TICKS(100)); // Delay to avoid flooding
+    vTaskDelay(pdMS_TO_TICKS(500)); // Delay to avoid flooding
   }
 }
