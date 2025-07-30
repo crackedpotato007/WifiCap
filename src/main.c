@@ -127,6 +127,10 @@ static void wifi_sniffer_packet_handler(void *buff,
     const uint8_t *addr2 = &data[10]; // Source
     const uint8_t *addr3 = &data[16]; // BSSID
     if (memcmp(addr3, selected_ap_bssid, 6) == 0) {
+      if (memcmp(addr2, selected_ap_bssid, 6) == 0) {
+        ESP_LOGD(TAG, "Packet from AP itself, ignoring.");
+        return; // Ignore packets from the AP itself
+      }
       if (!is_station_seen(addr2)) {
         add_station(addr2);
         ESP_LOGI("CLIENT", "Station found: %02X:%02X:%02X:%02X:%02X:%02X",
