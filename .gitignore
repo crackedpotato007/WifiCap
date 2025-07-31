@@ -1,6 +1,0 @@
-.pio
-output_dir
-spiffs_dump.bin
-build
-include/secrets.h
-.vscode

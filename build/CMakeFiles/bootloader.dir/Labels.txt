@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/home/arnav/Documents/myproject/build/CMakeFiles/bootloader
+/home/arnav/Documents/myproject/build/CMakeFiles/bootloader.rule
+/home/arnav/Documents/myproject/build/CMakeFiles/bootloader-complete.rule
+/home/arnav/Documents/myproject/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+/home/arnav/Documents/myproject/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/home/arnav/Documents/myproject/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/home/arnav/Documents/myproject/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/home/arnav/Documents/myproject/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/home/arnav/Documents/myproject/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/home/arnav/Documents/myproject/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

@@ -1,0 +1,2 @@
+source /home/arnav/Documents/myproject/build/bootloader/gdbinit/symbols
+source /home/arnav/Documents/myproject/build/bootloader/gdbinit/connect
