@@ -1,136 +1,80 @@
-/*
- * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: CC0-1.0
- */
+#include <driver/i2c_master.h> // ESP-IDF I2C master driver
+#include <esp_ssd1306.h>       // SSD1306 component header
 
-#include "driver/i2c_master.h"
-#include "esp_err.h"
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_log.h"
-#include "esp_lvgl_port.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "lvgl.h"
-#include <stdio.h>
+/* I2C Master Configuration */
+static i2c_master_bus_config_t i2c_master_bus_config = {
+    .i2c_port = I2C_NUM_0,
+    .scl_io_num = GPIO_NUM_22,
+    .sda_io_num = GPIO_NUM_21,
+    .clk_source = I2C_CLK_SRC_DEFAULT,
+    .glitch_ignore_cnt = 7,
+    .flags.enable_internal_pullup = true};
+static i2c_master_bus_handle_t i2c_master_bus;
 
-#if CONFIG_EXAMPLE_LCD_CONTROLLER_SH1107
-#include "esp_lcd_sh1107.h"
-#else
-#include "esp_lcd_panel_vendor.h"
-#endif
+/* SSD1306 */
+static const i2c_ssd1306_config_t i2c_ssd1306_config = {
+    .i2c_device_address = 0x3C,
+    .i2c_scl_speed_hz = 400000,
+    .width = 128,
+    .height = 64,
+    .wise = SSD1306_TOP_TO_BOTTOM};
+static i2c_ssd1306_handle_t i2c_ssd1306;
 
-static const char *TAG = "example";
+static char *TAG = "DISPLAY";
 
-#define I2C_BUS_PORT 0
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////// Please update the following configuration according to your
-/// LCD spec //////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define EXAMPLE_LCD_PIXEL_CLOCK_HZ (400 * 1000)
-#define EXAMPLE_PIN_NUM_SDA 3
-#define EXAMPLE_PIN_NUM_SCL 4
-#define EXAMPLE_PIN_NUM_RST -1
-#define EXAMPLE_I2C_HW_ADDR 0x3C
-
-// The pixel number in horizontal and vertical
-#if CONFIG_EXAMPLE_LCD_CONTROLLER_SSD1306
-#define EXAMPLE_LCD_H_RES 128
-#define EXAMPLE_LCD_V_RES 64
-#elif CONFIG_EXAMPLE_LCD_CONTROLLER_SH1107
-#define EXAMPLE_LCD_H_RES 64
-#define EXAMPLE_LCD_V_RES 128
-#endif
-// Bit number used to represent command and parameter
-#define EXAMPLE_LCD_CMD_BITS 8
-#define EXAMPLE_LCD_PARAM_BITS 8
-
-extern void example_lvgl_demo_ui(lv_disp_t *disp);
-
-void start(void) {
-  ESP_LOGI(TAG, "Initialize I2C bus");
-  i2c_master_bus_handle_t i2c_bus = NULL;
-  i2c_master_bus_config_t bus_config = {
-      .clk_source = I2C_CLK_SRC_DEFAULT,
-      .glitch_ignore_cnt = 7,
-      .i2c_port = I2C_BUS_PORT,
-      .sda_io_num = EXAMPLE_PIN_NUM_SDA,
-      .scl_io_num = EXAMPLE_PIN_NUM_SCL,
-      .flags.enable_internal_pullup = true,
-  };
-  ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &i2c_bus));
-
-  ESP_LOGI(TAG, "Install panel IO");
-  esp_lcd_panel_io_handle_t io_handle = NULL;
-  esp_lcd_panel_io_i2c_config_t io_config = {
-      .dev_addr = EXAMPLE_I2C_HW_ADDR,
-      .scl_speed_hz = EXAMPLE_LCD_PIXEL_CLOCK_HZ,
-      .control_phase_bytes = 1,               // According to SSD1306 datasheet
-      .lcd_cmd_bits = EXAMPLE_LCD_CMD_BITS,   // According to SSD1306 datasheet
-      .lcd_param_bits = EXAMPLE_LCD_CMD_BITS, // According to SSD1306 datasheet
-#if CONFIG_EXAMPLE_LCD_CONTROLLER_SSD1306
-      .dc_bit_offset = 6, // According to SSD1306 datasheet
-#elif CONFIG_EXAMPLE_LCD_CONTROLLER_SH1107
-      .dc_bit_offset = 0, // According to SH1107 datasheet
-      .flags =
-          {
-              .disable_control_phase = 1,
-          }
-#endif
-  };
-  ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(i2c_bus, &io_config, &io_handle));
-
-  ESP_LOGI(TAG, "Install SSD1306 panel driver");
-  esp_lcd_panel_handle_t panel_handle = NULL;
-  esp_lcd_panel_dev_config_t panel_config = {
-      .bits_per_pixel = 1,
-      .reset_gpio_num = EXAMPLE_PIN_NUM_RST,
-  };
-#if CONFIG_EXAMPLE_LCD_CONTROLLER_SSD1306
+void init_display() {
+  // Initialize I2C master bus
+  ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_master_bus_config, &i2c_master_bus));
   ESP_ERROR_CHECK(
-      esp_lcd_new_panel_ssd1306(io_handle, &panel_config, &panel_handle));
-#elif CONFIG_EXAMPLE_LCD_CONTROLLER_SH1107
-  ESP_ERROR_CHECK(
-      esp_lcd_new_panel_sh1107(io_handle, &panel_config, &panel_handle));
-#endif
+      i2c_ssd1306_init(i2c_master_bus, &i2c_ssd1306_config, &i2c_ssd1306));
+  ESP_LOGI(TAG, "Display initialized successfully");
+}
 
-  ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
-  ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
-  ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
+void draw_wrapped_text(int x, int y, const char *text, int line_height) {
+  int max_chars_per_line = 16;
+  int line = 0;
+  ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_ssd1306_buffer_fill(&i2c_ssd1306, false));
+  while (*text) {
+    char buf[64] = {0};
+    int i = 0;
 
-#if CONFIG_EXAMPLE_LCD_CONTROLLER_SH1107
-  ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle, true));
-#endif
+    // Temporary pointer to mark the last safe split (space)
+    const char *last_space = NULL;
+    int last_space_i = -1;
 
-  ESP_LOGI(TAG, "Initialize LVGL");
-  const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-  lvgl_port_init(&lvgl_cfg);
+    // Fill buffer word by word
+    while (*text && i < max_chars_per_line) {
+      buf[i] = *text;
 
-  const lvgl_port_display_cfg_t disp_cfg = {.io_handle = io_handle,
-                                            .panel_handle = panel_handle,
-                                            .buffer_size = EXAMPLE_LCD_H_RES *
-                                                           EXAMPLE_LCD_V_RES,
-                                            .double_buffer = true,
-                                            .hres = EXAMPLE_LCD_H_RES,
-                                            .vres = EXAMPLE_LCD_V_RES,
-                                            .monochrome = true,
-                                            .rotation = {
-                                                .swap_xy = false,
-                                                .mirror_x = false,
-                                                .mirror_y = false,
-                                            }};
-  lv_disp_t *disp = lvgl_port_add_disp(&disp_cfg);
+      if (*text == ' ') {
+        last_space = text;
+        last_space_i = i;
+      }
 
-  /* Rotation of the screen */
-  lv_disp_set_rotation(disp, LV_DISP_ROT_NONE);
+      i++;
+      text++;
+    }
 
-  ESP_LOGI(TAG, "Display LVGL Scroll Text");
-  // Lock the mutex due to the LVGL APIs are not thread-safe
-  if (lvgl_port_lock(0)) {
-    example_lvgl_demo_ui(disp);
-    // Release the mutex
-    lvgl_port_unlock();
+    // If we hit mid-word, rewind to last space
+    if (*text && last_space) {
+      int rewind = i - last_space_i - 1;
+      text -= rewind;
+      i = last_space_i; // Truncate at last space
+    }
+
+    buf[i] = '\0';
+    ESP_LOGI(TAG, "Drawing line %d: '%s'", line, buf);
+    ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_ssd1306_buffer_text(
+        &i2c_ssd1306, x, y + (line * line_height), buf, false));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_ssd1306_buffer_to_ram(&i2c_ssd1306));
+
+    line++;
+
+    // Skip space after the word wrap (avoid leading spaces)
+    while (*text == ' ')
+
+      text++;
   }
 }
+
+void display(const char *message) { draw_wrapped_text(0, 0, message, 10); }

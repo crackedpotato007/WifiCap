@@ -157,12 +157,7 @@
 /home/arnav/Documents/myproject/build/esp-idf/spiffs/libspiffs.a
 /home/arnav/Documents/myproject/build/esp-idf/wifi_provisioning/libwifi_provisioning.a
 /home/arnav/Documents/myproject/build/esp-idf/json/libjson.a
-/home/arnav/Documents/myproject/build/esp-idf/espressif__esp_lcd_sh1107/libespressif__esp_lcd_sh1107.a
-/home/arnav/Documents/myproject/build/esp-idf/esp_lcd/libesp_lcd.a
-/home/arnav/Documents/myproject/build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a
-/home/arnav/Documents/myproject/build/esp-idf/espressif__esp_lvgl_port/libespressif__esp_lvgl_port.a
-/home/arnav/Documents/myproject/build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a
+/home/arnav/Documents/myproject/build/esp-idf/quackonauty__esp_ssd1306/libquackonauty__esp_ssd1306.a
 /home/arnav/Documents/myproject/build/esp-idf/main/libmain.a
-/home/arnav/Documents/myproject/build/esp-idf/espressif__esp_lcd_sh1107/libespressif__esp_lcd_sh1107.a
-/home/arnav/Documents/myproject/build/esp-idf/espressif__esp_lvgl_port/libespressif__esp_lvgl_port.a
+/home/arnav/Documents/myproject/build/esp-idf/quackonauty__esp_ssd1306/libquackonauty__esp_ssd1306.a
 /home/arnav/Documents/myproject/build/esp-idf/wsl_bypasser/libwsl_bypasser.a

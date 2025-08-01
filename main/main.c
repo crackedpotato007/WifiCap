@@ -1,4 +1,5 @@
 #include "deauth.h"
+#include "display.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -26,8 +27,11 @@ static int ap_count = 0;
 static uint8_t selected_ap_bssid[6];
 
 bool is_bssid_seen(const uint8_t *bssid) {
-  ESP_LOGD(TAG, "Checking if BSSID is seen: %02X:%02X:%02X:%02X:%02X:%02X",
-           bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+  if (bssid == NULL) {
+    ESP_LOGE(TAG, "BSSID is NULL");
+    return false;
+  }
+
   for (int i = 0; i < ap_count; i++) {
     if (memcmp(ap_list[i].bssid, bssid, 6) == 0) {
       ESP_LOGD(TAG, "BSSID already seen: %02X:%02X:%02X:%02X:%02X:%02X",
@@ -115,6 +119,10 @@ static void wifi_sniffer_packet_handler(void *buff,
     // Only log and add if both SSID and channel are valid
     if (ssid[0] != '\0' && channel > 0) {
       if (!is_bssid_seen(bssid)) {
+        char display_string[64];
+        snprintf(display_string, sizeof(display_string), "Detected AP: %s",
+                 ssid);
+        display(display_string);
         add_ap(ssid, bssid, channel);
         ESP_LOGI(
             "BEACON",
@@ -234,7 +242,7 @@ void app_main(void) {
   ESP_ERROR_CHECK(esp_event_loop_create_default());
   init_spiffs();
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-
+  init_display();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
   esp_netif_create_default_wifi_sta();
