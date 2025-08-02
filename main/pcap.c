@@ -154,7 +154,7 @@ void write_pcap_packet(const uint8_t *data, uint32_t len) {
   if (M1 && M2 && M3 && M4 && !displayed) {
     ESP_LOGI("PCAP", "All EAPOL messages received.");
     display("EAPOL handshake capture complete.");
-    displayed = true
+    displayed = true;
   }
 
   struct pcaprec_hdr_s rec;
