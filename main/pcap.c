@@ -1,9 +1,11 @@
 #include "base64.h"
+#include "display.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
 #include "esp_system.h" // for esp_get_free_heap_size()
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "libwifi.h"
 #include "telegram.h"
 #include <ctype.h>
 #include <inttypes.h>
@@ -27,9 +29,18 @@ struct pcaprec_hdr_s {
 };
 
 bool writer_enabled = false;
+bool M1 =
+    false; // M1 is used to indicate if the first packet is being processed
+bool M2 = false; // M2 is used to indicate if the second packet is being
+bool M3 =
+    false; // M3 is used to indicate if the third packet is being processed
+bool M4 =
+    false; // M4 is used to indicate if the fourth packet is being processed
 FILE *pcap_file = NULL;
+bool displayed = false; // Used to ensure we only display once
 
 void write_pcap_header(FILE *f) {
+  displayed = false;
   struct pcap_hdr_s hdr;
   hdr.magic_number = 0xa1b2c3d4;
   hdr.version_major = 2;
@@ -70,6 +81,7 @@ void sanitize_ssid(const char *input, char *output, size_t max_len) {
 #define MAX_FILENAME_LEN 32
 char file_path[MAX_FILENAME_LEN];
 void start_pcap_writer(char *ssid) {
+  displayed = false; // Reset displayed flag
   // file format: /spiffs/capture-ssid.pcap
   char clean_ssid[MAX_SSID_LEN];
   sanitize_ssid(ssid, clean_ssid, sizeof(clean_ssid));
@@ -92,23 +104,6 @@ void start_pcap_writer(char *ssid) {
   ESP_LOGI("PCAP", "PCAP file created with header");
 }
 
-void write_pcap_packet(const uint8_t *data, uint32_t len) {
-  if (!pcap_file)
-    return;
-  //   ESP_LOGI("PCAP", "File size after write: %ld bytes", ftell(pcap_file));
-  struct pcaprec_hdr_s rec;
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-
-  rec.ts_sec = tv.tv_sec;
-  rec.ts_usec = tv.tv_usec;
-  rec.incl_len = len;
-  rec.orig_len = len;
-
-  fwrite(&rec, sizeof(rec), 1, pcap_file);
-  fwrite(data, len, 1, pcap_file);
-  fflush(pcap_file);
-}
 void close_pcap_writer(void) {
   ESP_LOGI("DEBUG", "writer_enabled: %d, pcap_file: %p", writer_enabled,
            (void *)pcap_file);
@@ -128,6 +123,56 @@ void close_pcap_writer(void) {
 
   send_file_to_telegram(file_path);
 }
+
+void write_pcap_packet(const uint8_t *data, uint32_t len) {
+  if (!pcap_file)
+    return;
+  struct libwifi_frame frame = {0};
+
+  bool wpa_data_initialized = false;
+  int ret = libwifi_get_wifi_frame(&frame, (uint8_t *)data, len, false);
+  if (ret < 0) {
+    ESP_LOGE("PCAP", "Failed to parse Wi-Fi frame: %d", ret);
+    return;
+  }
+  if (libwifi_check_wpa_handshake(&frame) == true) {
+
+    if (libwifi_check_wpa_message(&frame) == HANDSHAKE_M1) {
+      M1 = true;
+    }
+    if (libwifi_check_wpa_message(&frame) == HANDSHAKE_M2) {
+      M2 = true;
+    }
+    if (libwifi_check_wpa_message(&frame) == HANDSHAKE_M3) {
+      M3 = true;
+    }
+    if (libwifi_check_wpa_message(&frame) == HANDSHAKE_M4) {
+      M4 = true;
+    }
+  }
+
+  if (M1 && M2 && M3 && M4 && !displayed) {
+    ESP_LOGI("PCAP", "All EAPOL messages received.");
+    display("EAPOL handshake capture complete.");
+    displayed = true
+  }
+
+  struct pcaprec_hdr_s rec;
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+
+  rec.ts_sec = tv.tv_sec;
+  rec.ts_usec = tv.tv_usec;
+  rec.incl_len = len;
+  rec.orig_len = len;
+
+  fwrite(&rec, sizeof(rec), 1, pcap_file);
+  fwrite(data, len, 1, pcap_file);
+  fflush(pcap_file);
+  /* Cleanup allocated resources */
+  libwifi_free_wifi_frame(&frame);
+}
+
 bool is_writer_enabled() { return writer_enabled; }
 
 FILE *get_pcap_file() { return pcap_file; }

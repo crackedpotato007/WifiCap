@@ -165,9 +165,11 @@ void deauth_clients() {
     send_deauth_packet(selected_ap_bssid, station_list[i]); // Unicast deauth
     vTaskDelay(pdMS_TO_TICKS(1000)); // Delay to avoid flooding
   }
+  display("Deauth complete, waiting for more packets...");
   vTaskDelay(
       pdMS_TO_TICKS(15000)); // Wait for some more packets for nonce correction
   ESP_LOGI(TAG, "Deauth completed for %d clients.", station_count);
+  display("Sniffing complete, closing PCAP writer...");
   close_pcap_writer();
   // xTaskNotifyGive(close_task_handle); // Close PCAP writer after deauth
 }
@@ -194,6 +196,10 @@ void selectAP(void) {
              selected_ap_bssid[3], selected_ap_bssid[4], selected_ap_bssid[5]);
     ESP_LOGI(TAG, "Selected SSID: %s", ap_list[i].ssid);
     ESP_LOGI(TAG, "Selected channel: %d", ap_list[i].channel);
+    char display_string[64];
+    snprintf(display_string, sizeof(display_string), "Selected AP: %s",
+             ap_list[i].ssid);
+    display(display_string);
     ESP_LOGI(TAG, "Sniffing for clients for 10 seconds...");
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -202,7 +208,11 @@ void selectAP(void) {
         esp_wifi_set_channel(ap_list[i].channel, WIFI_SECOND_CHAN_NONE));
     ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
     vTaskDelay(pdMS_TO_TICKS(10000)); // Capture stations for 10s
-
+    char display_str[64];
+    snprintf(display_str, sizeof(display_str),
+             "Deauthing clients on %.20s, Detected %d clients", ap_list[i].ssid,
+             station_count);
+    display(display_str);
     start_pcap_writer(ap_list[i].ssid); // Start PCAP writer
     deauth_clients();
     ESP_LOGI(TAG, "Deauth sent to selected AP: %02X:%02X:%02X:%02X:%02X:%02X",
@@ -243,6 +253,7 @@ void app_main(void) {
   init_spiffs();
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   init_display();
+  display("Starting Wi-Fi Sniffer...");
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
   ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
   esp_netif_create_default_wifi_sta();
