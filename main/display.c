@@ -24,8 +24,9 @@ static char *TAG = "DISPLAY";
 
 void init_display() {
   // Initialize I2C master bus
-  ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_master_bus_config, &i2c_master_bus));
-  ESP_ERROR_CHECK(
+  ESP_ERROR_CHECK_WITHOUT_ABORT(
+      i2c_new_master_bus(&i2c_master_bus_config, &i2c_master_bus));
+  ESP_ERROR_CHECK_WITHOUT_ABORT(
       i2c_ssd1306_init(i2c_master_bus, &i2c_ssd1306_config, &i2c_ssd1306));
   ESP_LOGI(TAG, "Display initialized successfully");
 }
